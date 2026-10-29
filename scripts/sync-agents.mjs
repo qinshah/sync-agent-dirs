@@ -221,14 +221,19 @@ function isLink(p) { try { return fs.lstatSync(p).isSymbolicLink(); } catch { re
 
 function writeGitignore(project, dirs, track) {
   const file = path.join(project, '.gitignore');
+  const present = dirs.filter(d => {
+    const abs = path.join(project, d);
+    return isLink(abs) || fs.existsSync(abs);
+  });
   const lines = [
     BLOCK_BEGIN,
     '# 只追踪下列白名单目录，其余一律忽略；别用 .??* 之类的通配，会把 .git 也吃掉',
     `${CANONICAL}/*`,
   ];
-  for (const t of track) lines.push(`!${CANONICAL}/${t}/`, `!${CANONICAL}/${t}/**`);
+  // 一条 !.agents/x/ 就能放行整棵子树，再写 !.agents/x/** 是多余的
+  for (const t of track) lines.push(`!${CANONICAL}/${t}/`);
   lines.push(`${BACKUP_ROOT}/`, '');
-  for (const d of dirs) lines.push(d);
+  lines.push(...present);
   lines.push(BLOCK_END);
   const block = lines.join('\n');
   const prev = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
@@ -310,12 +315,6 @@ function apply(project, dirs, track, resolutions, create) {
 
   writeGitignore(project, dirs, track);
 
-  if (unresolved.length) {
-    console.error('\n以下冲突尚未决定，对应目录保持原样（其余目录可能已处理）:');
-    for (const u of unresolved) console.error(`  ${u.dir}: ${u.paths.join(', ')}`);
-    console.error('\n请与用户逐项确认后写入 resolutions 文件，再重新执行 apply。');
-    return 1;
-  }
   console.log(done.join('\n'));
   console.log(`\n.gitignore 白名单已写入（追踪: ${track.join(', ')}）`);
   return 0;

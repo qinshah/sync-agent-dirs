@@ -87,16 +87,17 @@ git add -A && git status --short
 # >>> sync-agent-dirs >>>
 .agents/*
 !.agents/skills/
-!.agents/skills/**
 !.agents/mcp/
-!.agents/mcp/**
+!.agents/rules/
 .agents-backup/
 
 .claude
 .cursor
-# ...
+# ...只列项目里真实存在的目录
 # <<< sync-agent-dirs <<<
 ```
+
+每条白名单一行就够：`!.agents/skills/` 会连同整棵子树一起放行，再补 `!.agents/skills/**` 是多余的。
 
 先忽略 `.agents` 下的一切，再用 `!` 逐个放行白名单目录。默认白名单 `skills,mcp,rules,commands`，用 `--track` 调整。**不要**换成 `.??*` 这类通配，会把 `.git` 一起吞掉。
 
