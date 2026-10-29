@@ -9,7 +9,7 @@ const BACKUP_ROOT = '.agents-backup';
 const DEFAULT_DIRS = [
   '.claude', '.cursor', '.codex', '.qoder', '.gemini', '.windsurf', '.cline',
   '.roo', '.kilocode', '.trae', '.continue', '.amp', '.opencode', '.aider-desk',
-  '.kiro', '.zed',
+  '.kiro', '.zed', '.workbuddy',
 ];
 const DEFAULT_TRACK = ['skills', 'mcp', 'rules', 'commands'];
 const NEVER_LINK = new Set(['.git', '.github', '.agents', BACKUP_ROOT]);
@@ -219,12 +219,27 @@ function copyPath(src, dest) {
 
 function isLink(p) { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return false; } }
 
+// 块内已有的目录名要继承下来，否则只带部分 --dirs 重跑会把别的目录漏出白名单
+function readBlockDirs(file) {
+  if (!fs.existsSync(file)) return [];
+  const prev = fs.readFileSync(file, 'utf8');
+  const begin = prev.indexOf(BLOCK_BEGIN);
+  const end = prev.indexOf(BLOCK_END);
+  if (begin === -1 || end < begin) return [];
+  const keep = new Set([`${CANONICAL}/*`, `${BACKUP_ROOT}/`]);
+  return prev.slice(begin + BLOCK_BEGIN.length, end)
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s && !s.startsWith('#') && !s.startsWith('!') && !keep.has(s));
+}
+
 function writeGitignore(project, dirs, track) {
   const file = path.join(project, '.gitignore');
-  const present = dirs.filter(d => {
+  const exists = d => {
     const abs = path.join(project, d);
     return isLink(abs) || fs.existsSync(abs);
-  });
+  };
+  const present = [...new Set([...readBlockDirs(file), ...dirs.filter(exists)])].filter(exists).sort();
   const lines = [
     BLOCK_BEGIN,
     '# 只追踪下列白名单目录，其余一律忽略；别用 .??* 之类的通配，会把 .git 也吃掉',
