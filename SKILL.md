@@ -12,6 +12,7 @@ description: 把项目里各家 AI 工具（Claude Code、Cursor、Codex、Qoder
 1. **只链接目录，不碰内容语义**。每个候选目录整体变成指向 `.agents` 的软链，所以 `<.xxx>/skills` 与 `.agents/skills` 是同一份文件。
 2. **冲突必须问**。`.agents` 侧和某家目录侧同名文件内容不同时，等同于 git 合并冲突：**停下来，把差异摆给用户，逐项确认，禁止自行取舍**。
 3. **`.github` 永不链接**。它是仓库目录（CI、issue 模板），不是 agent 目录；`.git`、`.agents`、`.agents-backup` 同样排除。
+4. **默认只链接已有的目录**。没有点名时，不为项目里不存在的目录建链；用户用 `--dirs` 明确点名的目录即便当前不存在，也按"要求链接"处理直接建链。除此之外不预埋任何链接。
 
 ## 流程
 
@@ -25,7 +26,7 @@ node <skill>/scripts/sync-agents.mjs plan --project .
 
 输出每个候选目录的状态：`已链接` / `待链接` / `需合并` / `不存在` / `指向他处` / `不是目录`，并列出冲突明细与"仅一侧存在、将并入 `.agents`"的文件清单。
 
-需要结构化结果时加 `--json`。默认只处理已存在的目录；想让尚未使用的工具也提前接上（避免它自己建真目录），加 `--create`。
+需要结构化结果时加 `--json`。默认只处理已存在的目录；想给尚未使用的工具提前接上，用 `--dirs .opencode,.qoder,.trae` 点名——这些目录即使不存在也会被建链（出现在 `--dirs` 里即视为明确要求）。
 
 ### 2. 逐项确认冲突
 
@@ -63,7 +64,7 @@ node <skill>/scripts/sync-agents.mjs show .claude settings.json
 ### 4. 执行
 
 ```bash
-node <skill>/scripts/sync-agents.mjs apply --project . --yes --resolutions <file> [--create]
+node <skill>/scripts/sync-agents.mjs apply --project . --yes [--dirs .opencode,.qoder,.trae] --resolutions <file>
 ```
 
 `apply` 做的事：建好 `.agents` 与白名单子目录 → 把仅一侧存在的文件并入 `.agents` → 按决议覆盖冲突 → 原目录整体移入 `.agents-backup/<时间戳>/<目录名>` → 建立相对软链 `<.xxx> -> .agents` → 重写 `.gitignore` 白名单块。

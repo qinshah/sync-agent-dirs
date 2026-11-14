@@ -19,15 +19,15 @@ const BLOCK_END = '# <<< sync-agent-dirs <<<';
 
 function usage() {
   console.log(`用法:
-  node sync-agents.mjs plan   [--project DIR] [--dirs a,b] [--track a,b] [--create] [--json]
+  node sync-agents.mjs plan   [--project DIR] [--dirs a,b] [--track a,b] [--json]
   node sync-agents.mjs show   <dir> <相对路径>   [--project DIR]
-  node sync-agents.mjs apply  [--project DIR] --yes [--resolutions FILE] [--dirs a,b] [--track a,b] [--create]
+  node sync-agents.mjs apply  [--project DIR] --yes [--resolutions FILE] [--dirs a,b] [--track a,b]
   node sync-agents.mjs status [--project DIR] [--dirs a,b]
   node sync-agents.mjs unlink --dir .claude [--project DIR]`);
 }
 
 function parseArgs(argv) {
-  const opts = { project: process.cwd(), dirs: null, track: null, create: false, yes: false, json: false, resolutions: null, dir: null, positional: [] };
+  const opts = { project: process.cwd(), dirs: null, track: null, yes: false, json: false, resolutions: null, dir: null, positional: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -36,7 +36,6 @@ function parseArgs(argv) {
     else if (a === '--track') opts.track = next().split(',').map(s => s.trim()).filter(Boolean);
     else if (a === '--resolutions') opts.resolutions = path.resolve(next());
     else if (a === '--dir') opts.dir = next();
-    else if (a === '--create') opts.create = true;
     else if (a === '--yes') opts.yes = true;
     else if (a === '--json') opts.json = true;
     else if (a.startsWith('--')) throw new Error(`未知参数: ${a}`);
@@ -141,7 +140,7 @@ function topLevel(paths) {
   });
 }
 
-function printPlan(report, dirs, track) {
+function printPlan(report, dirs, track, linkMissing = new Set()) {
   console.log(`项目: ${report.project}`);
   console.log(`${CANONICAL}: ${report.canonicalExists ? '已存在' : '将创建'}   白名单: ${track.join(', ')}`);
   console.log('');
@@ -152,10 +151,10 @@ function printPlan(report, dirs, track) {
   const missing = [];
   const rows = [];
   for (const d of report.dirs) {
-    if (d.state === 'missing' && !d.__create) { missing.push(d.dir); continue; }
+    if (d.state === 'missing' && !linkMissing.has(d.dir)) { missing.push(d.dir); continue; }
     rows.push({
       dir: d.dir,
-      state: d.__create ? '待创建链接' : (stateMap[d.state] || d.state),
+      state: d.state === 'missing' ? '待新建链接' : (stateMap[d.state] || d.state),
       only: d.only ? `${topLevel(d.only).length} 项` : '-',
       conflict: d.conflicts ? `${d.conflicts.length + d.typeConflicts.length} 项` : '-',
       note: d.state === 'merge' ? '需逐项决定' : d.state === 'foreign-link' ? `→ ${d.target}` : '',
@@ -168,7 +167,7 @@ function printPlan(report, dirs, track) {
       console.log(dstr(r.dir, w[0]) + dstr(r.state, w[1]) + dstr(r.only, w[2]) + dstr(r.conflict, w[3]) + r.note);
     }
   }
-  if (missing.length) console.log(`\n不存在（加 --create 可提前建链接）: ${missing.join(', ')}`);
+  if (missing.length) console.log(`\n不存在（默认不建链；用 --dirs 点名才会新建链接）: ${missing.join(', ')}`);
   const mergeables = report.dirs.filter(d => d.state === 'merge');
   if (mergeables.length) {
     console.log('\n冲突明细:');
@@ -275,7 +274,7 @@ function linkDir(project, name) {
   fs.symlinkSync(CANONICAL, path.join(project, name), 'dir');
 }
 
-function apply(project, dirs, track, resolutions, create) {
+function apply(project, dirs, track, resolutions, linkMissing = new Set()) {
   const canonicalAbs = path.join(project, CANONICAL);
   const report = analyze(project, dirs);
 
@@ -309,9 +308,10 @@ function apply(project, dirs, track, resolutions, create) {
     if (item.state === 'not-a-dir') { done.push(`${item.dir}: 不是目录，跳过`); continue; }
     if (item.state === 'foreign-link') { done.push(`${item.dir}: 指向 ${item.target}，非本次管理范围，跳过`); continue; }
     if (item.state === 'missing') {
-      if (!create) continue;
+      // 默认不处理不存在的目录；只有 --dirs 明确点名的才新建链接
+      if (!linkMissing.has(item.dir)) continue;
       linkDir(project, item.dir);
-      done.push(`${item.dir}: 新建链接 → ${CANONICAL}`);
+      done.push(`${item.dir}: 按点名要求新建链接 → ${CANONICAL}`);
       continue;
     }
 
@@ -346,13 +346,14 @@ function main() {
   if (!cmd || cmd === '-h' || cmd === '--help') { usage(); return 0; }
   const opts = parseArgs(rest);
   const dirs = (opts.dirs || DEFAULT_DIRS).filter(d => !NEVER_LINK.has(d));
+  // --dirs 显式点名的目录视为明确要求：即使当前不存在也建链
+  const linkMissing = new Set((opts.dirs || []).filter(d => !NEVER_LINK.has(d)));
   const track = opts.track || DEFAULT_TRACK;
 
   if (cmd === 'plan') {
     const report = analyze(opts.project, dirs);
-    if (opts.create) for (const d of report.dirs) if (d.state === 'missing') d.__create = true;
     if (opts.json) { console.log(JSON.stringify(report, null, 2)); return 0; }
-    printPlan(report, dirs, track);
+    printPlan(report, dirs, track, linkMissing);
     return 0;
   }
 
@@ -384,7 +385,7 @@ function main() {
       console.error('apply 会移动目录并建立软链，必须显式加 --yes。先跑 plan 并把冲突项与用户确认。');
       return 1;
     }
-    return apply(opts.project, dirs, track, loadResolutions(opts.resolutions), opts.create);
+    return apply(opts.project, dirs, track, loadResolutions(opts.resolutions), linkMissing);
   }
 
   if (cmd === 'unlink') {
