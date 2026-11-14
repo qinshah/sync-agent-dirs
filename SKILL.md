@@ -1,6 +1,6 @@
 ---
 name: sync-agent-dirs
-description: 把项目里各家 AI 工具（Claude Code、Cursor、Codex、Qoder、Gemini CLI、Windsurf、Cline、Trae 等）的专有目录统一软链到 .agents 单一真源，并用 .gitignore 白名单让 git 只追踪 .agents 下的 skills/mcp/rules/commands；.agents 与这些目录内容冲突时像解决 git 冲突一样逐项询问用户取舍。Use when unifying agent config dirs, symlinking .claude/.cursor/.codex/.qoder to .agents, or setting up gitignore whitelist for agent directories.
+description: 把项目里各家 AI 工具（Claude Code、Cursor、Codex、Qoder、Gemini CLI、Windsurf、Cline、Trae 等）的专有目录统一软链到 .agents 单一真源，并用 .gitignore 白名单让 git 只追踪 .agents 下的 skills/mcp/rules/commands/agents；.agents 与这些目录内容冲突时像解决 git 冲突一样逐项询问用户取舍。Use when unifying agent config dirs, symlinking .claude/.cursor/.codex/.qoder to .agents, or setting up gitignore whitelist for agent directories.
 ---
 
 # sync-agent-dirs
@@ -90,6 +90,8 @@ git add -A && git status --short
 !.agents/skills/
 !.agents/mcp/
 !.agents/rules/
+!.agents/commands/
+!.agents/agents/
 .agents-backup/
 
 .claude
@@ -100,7 +102,7 @@ git add -A && git status --short
 
 每条白名单一行就够：`!.agents/skills/` 会连同整棵子树一起放行，再补 `!.agents/skills/**` 是多余的。
 
-先忽略 `.agents` 下的一切，再用 `!` 逐个放行白名单目录。默认白名单 `skills,mcp,rules,commands`，用 `--track` 调整。**不要**换成 `.??*` 这类通配，会把 `.git` 一起吞掉。
+先忽略 `.agents` 下的一切，再用 `!` 逐个放行白名单目录。默认白名单 `skills,mcp,rules,commands,agents`，用 `--track` 调整。**不要**换成 `.??*` 这类通配，会把 `.git` 一起吞掉。
 
 ## 回滚
 

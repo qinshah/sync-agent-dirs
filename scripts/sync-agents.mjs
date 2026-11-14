@@ -11,7 +11,7 @@ const DEFAULT_DIRS = [
   '.roo', '.kilocode', '.trae', '.continue', '.amp', '.opencode', '.aider-desk',
   '.kiro', '.zed', '.workbuddy',
 ];
-const DEFAULT_TRACK = ['skills', 'mcp', 'rules', 'commands'];
+const DEFAULT_TRACK = ['skills', 'mcp', 'rules', 'commands', 'agents'];
 const NEVER_LINK = new Set(['.git', '.github', '.agents', BACKUP_ROOT]);
 const SKIP_NAMES = new Set(['.git', 'node_modules', '.DS_Store', BACKUP_ROOT]);
 const BLOCK_BEGIN = '# >>> sync-agent-dirs >>>';
